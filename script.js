@@ -7,18 +7,34 @@ function generatePDF() {
   // ===== INPUTS =====
   const restaurant = document.getElementById("restaurant").value || "Restaurant";
   const name = document.getElementById("name").value || "Name";
-  const monthText = document.getElementById("month").value || "Month Year";
+  const monthTextRaw = document.getElementById("month").value || "";
   const wage = Number(document.getElementById("wage").value) || 0;
 
   const MAX_SALARY = 100000;
   const WEEKLY_LIMIT = 28;
-  const MAX_ROWS = 25; // ONE PAGE ONLY
+  const MAX_ROWS = 25; // one page only
 
-  // ===== MONTH PARSE =====
-  const [monthName, year] = monthText.split(" ");
+  // ===== SAFE MONTH PARSING =====
+  const monthText = monthTextRaw.trim().replace(/\s+/g, " ");
+  const parts = monthText.split(" ");
+
+  if (parts.length !== 2) {
+    alert("Please enter Month & Year like: January 2025");
+    return;
+  }
+
+  const monthName = parts[0];
+  const year = Number(parts[1]);
+
   const monthIndex = new Date(`${monthName} 1, ${year}`).getMonth();
+  if (isNaN(monthIndex)) {
+    alert("Invalid month name. Example: January 2025");
+    return;
+  }
+
   const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
 
+  // ===== STATE =====
   let totalHours = 0;
   let weeklyHours = 0;
   let rowsPrinted = 0;
@@ -40,7 +56,6 @@ function generatePDF() {
   y += 8;
   doc.setFontSize(12);
 
-  doc.setFont("helvetica", "bold");
   doc.text("Restaurant Name:", 105, y, { align: "right" });
   doc.setFont("helvetica", "normal");
   doc.text(` ${restaurant}`, 105, y, { align: "left" });
@@ -57,7 +72,7 @@ function generatePDF() {
 
   y += 10;
 
-  // ===== TABLE SETUP =====
+  // ===== TABLE =====
   const startX = 20;
   const colDate = 70;
   const colTime = 120;
@@ -75,11 +90,10 @@ function generatePDF() {
   doc.setFont("helvetica", "normal");
   y += rowHeight;
 
-  // ===== ROWS =====
+  // ===== AUTO-GENERATED MONTHLY DATA =====
   for (let day = 1; day <= daysInMonth; day++) {
 
     if (rowsPrinted >= MAX_ROWS) break;
-
     if ((day - 1) % 7 === 0) weeklyHours = 0;
     if (totalHours * wage >= MAX_SALARY) break;
 
@@ -127,12 +141,11 @@ function generatePDF() {
   y += 6;
   doc.text(`Total Salary: ¥${salary.toLocaleString()}`, 20, y);
 
-  // ===== PREVIEW (DESKTOP) / NEW TAB (MOBILE) =====
+  // ===== PREVIEW =====
   pdfBlob = doc.output("blob");
   const url = URL.createObjectURL(pdfBlob);
 
   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
   if (isMobile) {
     window.open(url, "_blank");
     document.getElementById("mobileHint").style.display = "block";
