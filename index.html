@@ -2,46 +2,69 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Baito Monthly Report</title>
+  <title>Arubaito Report Generator</title>
+
+  <!-- Mobile friendly -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Optional modern font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Your CSS -->
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-<h1>Arubaito Monthly Report</h1>
+  <div class="form">
+    <h1>Arubaito Report</h1>
 
-<div class="form">
-  <label>Name:</label>
-  <input id="name" type="text" />
+    <label for="restaurant">Restaurant Name</label>
+    <input
+      id="restaurant"
+      type="text"
+      placeholder="Namaste Restaurant"
+    />
 
-  <label>Restaurant:</label>
-  <input id="restaurant" type="text" />
+    <label for="name">Your Name</label>
+    <input
+      id="name"
+      type="text"
+      placeholder="Abhishek Kathait"
+    />
 
-  <label>Month & Year:</label>
-  <input id="month" type="text" placeholder="January 2025" />
+    <label for="month">Month & Year</label>
+    <input
+      id="month"
+      type="text"
+      placeholder="January 2025"
+    />
 
-  <label>Hourly Wage (¥):</label>
-  <input id="wage" type="number" value="1150" />
+    <label for="wage">Hourly Wage (¥)</label>
+    <input
+      id="wage"
+      type="number"
+      value="1150"
+    />
 
- <p><b>Work entries will be generated automatically.</b></p>
+    <button onclick="generatePDF()">Generate PDF</button>
 
+    <iframe id="pdfPreview"></iframe>
 
+    <p id="mobileHint" style="display:none;">
+      On mobile devices, the PDF opens in a new tab for preview and printing.
+    </p>
 
+    <button class="secondary" onclick="printPDF()">Print PDF</button>
+    <button class="secondary" onclick="downloadPDF()">Download PDF</button>
+  </div>
 
+  <!-- jsPDF CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-  <button onclick="generatePDF()">Generate PDF Preview</button>
+  <!-- Your JS -->
+  <script src="script.js"></script>
 
-<h3>PDF Preview</h3>
-<iframe id="pdfPreview" width="100%" height="500px"></iframe>
-<p id="mobileHint" style="display:none;">
-  PDF preview opens in a new tab on mobile.
-</p>
-
-<button onclick="printPDF()">Print PDF</button>
-<button onclick="downloadPDF()">Download PDF</button>
-
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="script.js"></script>
 </body>
 </html>
