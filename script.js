@@ -1,6 +1,7 @@
 let pdfBlob = null;
+let lastDoc = null; // <-- keep reference for saving
 
-/* ===== Populate Month & Year dropdowns automatically ===== */
+/* ===== Populate Month & Year dropdowns ===== */
 (function initSelectors() {
   const monthSelect = document.getElementById("month");
   const yearSelect = document.getElementById("year");
@@ -30,7 +31,7 @@ let pdfBlob = null;
   }
 })();
 
-/* ===== Helper: file name ===== */
+/* ===== Helper: build filename ===== */
 function getReportFileName() {
   const name =
     (document.getElementById("name").value || "Name")
@@ -52,6 +53,7 @@ function getReportFileName() {
 function generatePDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
+  lastDoc = doc; // <-- save reference
 
   const restaurant = document.getElementById("restaurant").value || "Restaurant";
   const name = document.getElementById("name").value || "Name";
@@ -73,7 +75,7 @@ function generatePDF() {
   let totalHours = 0;
   let weeklyHours = 0;
 
-  /* ===== One OFF day per week ===== */
+  /* ===== One OFF per week ===== */
   let offDays = new Set();
   for (let s = 1; s <= daysInMonth; s += 7) {
     const e = Math.min(s + 6, daysInMonth);
@@ -82,7 +84,6 @@ function generatePDF() {
 
   /* ===== Header ===== */
   let y = 16;
-
   doc.setFont("helvetica","bold");
   doc.setFontSize(16);
   doc.text("ARUBAITO REPORT", 105, y, { align: "center" });
@@ -106,27 +107,21 @@ function generatePDF() {
   y += 7;
 
   /* ===== Table ===== */
-  const startX = 15;
-  const colDate = 65;
-  const colTime = 115;
-  const colHours = 170;
-  const rowH = 6;
+  const startX = 15, colDate = 65, colTime = 115, colHours = 170, rowH = 6;
 
   doc.setFont("helvetica","bold");
-  doc.rect(startX, y, colHours - startX, rowH);
-  doc.line(colDate, y, colDate, y + rowH);
-  doc.line(colTime, y, colTime, y + rowH);
-  doc.text("Date", startX + 2, y + 4.5);
-  doc.text("Time", colDate + 2, y + 4.5);
-  doc.text("Hours", colTime + 2, y + 4.5);
+  doc.rect(startX,y,colHours-startX,rowH);
+  doc.line(colDate,y,colDate,y+rowH);
+  doc.line(colTime,y,colTime,y+rowH);
+  doc.text("Date",startX+2,y+4.5);
+  doc.text("Time",colDate+2,y+4.5);
+  doc.text("Hours",colTime+2,y+4.5);
 
   doc.setFont("helvetica","normal");
   doc.setFontSize(9);
   y += rowH;
 
-  /* ===== Full Month Rows (ONE PAGE) ===== */
   for (let d = 1; d <= daysInMonth; d++) {
-
     if ((d - 1) % 7 === 0) weeklyHours = 0;
     if (totalHours * wage >= MAX_SALARY) break;
 
@@ -140,32 +135,31 @@ function generatePDF() {
         (totalHours + h) * wage < MAX_SALARY
       ) {
         const sh = 9 + Math.floor(Math.random() * 3);
-        time = `${String(sh).padStart(2,"0")}:00-${String(sh + h).padStart(2,"0")}:00`;
+        time = `${String(sh).padStart(2,"0")}:00-${String(sh+h).padStart(2,"0")}:00`;
         hours = h;
         weeklyHours += h;
         totalHours += h;
       }
     }
 
-    doc.rect(startX, y, colHours - startX, rowH);
-    doc.line(colDate, y, colDate, y + rowH);
-    doc.line(colTime, y, colTime, y + rowH);
+    doc.rect(startX,y,colHours-startX,rowH);
+    doc.line(colDate,y,colDate,y+rowH);
+    doc.line(colTime,y,colTime,y+rowH);
 
-    doc.text(`${String(d).padStart(2,"0")} ${monthName} ${year}`, startX + 2, y + 4.5);
-    doc.text(time, colDate + 2, y + 4.5);
-    doc.text(String(hours), colTime + 8, y + 4.5, { align: "right" });
+    doc.text(`${String(d).padStart(2,"0")} ${monthName} ${year}`, startX+2, y+4.5);
+    doc.text(time,colDate+2,y+4.5);
+    doc.text(String(hours),colTime+8,y+4.5,{align:"right"});
 
     y += rowH;
   }
 
-  /* ===== Totals ===== */
   y += 4;
   doc.setFontSize(10);
   doc.text(`Total Hours: ${totalHours}`, 15, y);
   y += 5;
-  doc.text(`Total Salary: ¥${(totalHours * wage).toLocaleString()}`, 15, y);
+  doc.text(`Total Salary: ¥${(totalHours*wage).toLocaleString()}`, 15, y);
 
-  /* ===== Preview / Mobile handling ===== */
+  /* ===== Preview ===== */
   pdfBlob = doc.output("blob");
   const url = URL.createObjectURL(pdfBlob);
 
@@ -185,12 +179,11 @@ function printPDF() {
   w.onload = () => w.print();
 }
 
-/* ===== Download with dynamic filename ===== */
+/* ===== Download (CORRECT filename everywhere) ===== */
 function downloadPDF() {
-  if (!pdfBlob) return alert("Generate PDF first");
-
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(pdfBlob);
-  a.download = getReportFileName();
-  a.click();
+  if (!lastDoc) {
+    alert("Generate PDF first");
+    return;
+  }
+  lastDoc.save(getReportFileName()); // ✅ THIS is the key fix
 }
