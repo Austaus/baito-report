@@ -141,8 +141,20 @@ function generatePDF() {
 
   // ===== Preview =====
   pdfBlob = doc.output("blob");
-  document.getElementById("pdfPreview").src =
-    URL.createObjectURL(pdfBlob);
+const url = URL.createObjectURL(pdfBlob);
+
+const isMobile =
+  /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+if (isMobile) {
+  // Mobile: open PDF in new tab
+  window.open(url, "_blank");
+  document.getElementById("mobileHint").style.display = "block";
+} else {
+  // Desktop: iframe preview
+  document.getElementById("pdfPreview").src = url;
+}
+
 }
 
 // ===== Print =====
