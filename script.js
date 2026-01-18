@@ -1,172 +1,159 @@
 let pdfBlob = null;
 
+// ===== Populate Month & Year dropdowns =====
+(function initSelectors() {
+  const monthSelect = document.getElementById("month");
+  const yearSelect = document.getElementById("year");
+
+  const months = [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December"
+  ];
+
+  const now = new Date();
+
+  months.forEach((m, i) => {
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = m;
+    if (i === now.getMonth()) opt.selected = true;
+    monthSelect.appendChild(opt);
+  });
+
+  const currentYear = now.getFullYear();
+  for (let y = currentYear - 2; y <= currentYear + 2; y++) {
+    const opt = document.createElement("option");
+    opt.value = y;
+    opt.textContent = y;
+    if (y === currentYear) opt.selected = true;
+    yearSelect.appendChild(opt);
+  }
+})();
+
 function generatePDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
 
-  // ===== INPUTS =====
   const restaurant = document.getElementById("restaurant").value || "Restaurant";
   const name = document.getElementById("name").value || "Name";
-  const monthTextRaw = document.getElementById("month").value || "";
+  const monthIndex = Number(document.getElementById("month").value);
+  const year = Number(document.getElementById("year").value);
   const wage = Number(document.getElementById("wage").value) || 0;
 
   const MAX_SALARY = 100000;
   const WEEKLY_LIMIT = 28;
-  const MAX_ROWS = 25; // one page only
+  const MAX_ROWS = 25;
 
-  // ===== SAFE MONTH PARSING =====
-  const monthText = monthTextRaw.trim().replace(/\s+/g, " ");
-  const parts = monthText.split(" ");
-
-  if (parts.length !== 2) {
-    alert("Please enter Month & Year like: January 2025");
-    return;
-  }
-
-  const monthName = parts[0];
-  const year = Number(parts[1]);
-
-  const monthIndex = new Date(`${monthName} 1, ${year}`).getMonth();
-  if (isNaN(monthIndex)) {
-    alert("Invalid month name. Example: January 2025");
-    return;
-  }
-
+  const monthNames = [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December"
+  ];
+  const monthName = monthNames[monthIndex];
   const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
 
-  // ===== STATE =====
   let totalHours = 0;
   let weeklyHours = 0;
   let rowsPrinted = 0;
 
-  // ===== ONE OFF DAY PER WEEK =====
+  // One OFF day per week
   let offDays = new Set();
-  for (let start = 1; start <= daysInMonth; start += 7) {
-    const end = Math.min(start + 6, daysInMonth);
-    offDays.add(Math.floor(Math.random() * (end - start + 1)) + start);
+  for (let s = 1; s <= daysInMonth; s += 7) {
+    const e = Math.min(s + 6, daysInMonth);
+    offDays.add(Math.floor(Math.random() * (e - s + 1)) + s);
   }
 
-  // ===== HEADER =====
+  // ===== Header =====
   let y = 18;
-
-  doc.setFont("helvetica", "bold");
+  doc.setFont("helvetica","bold");
   doc.setFontSize(18);
-  doc.text("ARUBAITO REPORT", 105, y, { align: "center" });
+  doc.text("ARUBAITO REPORT",105,y,{align:"center"});
 
   y += 8;
   doc.setFontSize(12);
-
-  doc.text("Restaurant Name:", 105, y, { align: "right" });
-  doc.setFont("helvetica", "normal");
-  doc.text(` ${restaurant}`, 105, y, { align: "left" });
+  doc.text("Restaurant Name:",105,y,{align:"right"});
+  doc.setFont("helvetica","normal");
+  doc.text(` ${restaurant}`,105,y,{align:"left"});
 
   y += 6;
-  doc.setFont("helvetica", "bold");
-  doc.text("Name:", 105, y, { align: "right" });
-  doc.setFont("helvetica", "normal");
-  doc.text(` ${name}`, 105, y, { align: "left" });
+  doc.setFont("helvetica","bold");
+  doc.text("Name:",105,y,{align:"right"});
+  doc.setFont("helvetica","normal");
+  doc.text(` ${name}`,105,y,{align:"left"});
 
   y += 6;
   doc.setFontSize(11);
-  doc.text(monthText, 105, y, { align: "center" });
-
+  doc.text(`${monthName} ${year}`,105,y,{align:"center"});
   y += 10;
 
-  // ===== TABLE =====
-  const startX = 20;
-  const colDate = 70;
-  const colTime = 120;
-  const colHours = 170;
-  const rowHeight = 8;
+  // ===== Table =====
+  const startX=20, colDate=70, colTime=120, colHours=170, rowH=8;
 
-  doc.setFont("helvetica", "bold");
-  doc.rect(startX, y, colHours - startX, rowHeight);
-  doc.line(colDate, y, colDate, y + rowHeight);
-  doc.line(colTime, y, colTime, y + rowHeight);
-  doc.text("Date", startX + 2, y + 6);
-  doc.text("Time", colDate + 2, y + 6);
-  doc.text("Hours", colTime + 2, y + 6);
+  doc.setFont("helvetica","bold");
+  doc.rect(startX,y,colHours-startX,rowH);
+  doc.line(colDate,y,colDate,y+rowH);
+  doc.line(colTime,y,colTime,y+rowH);
+  doc.text("Date",startX+2,y+6);
+  doc.text("Time",colDate+2,y+6);
+  doc.text("Hours",colTime+2,y+6);
 
-  doc.setFont("helvetica", "normal");
-  y += rowHeight;
+  doc.setFont("helvetica","normal");
+  y += rowH;
 
-  // ===== AUTO-GENERATED MONTHLY DATA =====
-  for (let day = 1; day <= daysInMonth; day++) {
+  for (let d=1; d<=daysInMonth && rowsPrinted<MAX_ROWS; d++) {
+    if ((d-1)%7===0) weeklyHours=0;
+    if (totalHours*wage>=MAX_SALARY) break;
 
-    if (rowsPrinted >= MAX_ROWS) break;
-    if ((day - 1) % 7 === 0) weeklyHours = 0;
-    if (totalHours * wage >= MAX_SALARY) break;
+    let hours=0, time="OFF";
 
-    let hours = 0;
-    let time = "OFF";
-
-    if (!offDays.has(day)) {
-      const proposed = Math.random() < 0.5 ? 3 : 4;
-
-      if (
-        weeklyHours + proposed <= WEEKLY_LIMIT &&
-        (totalHours + proposed) * wage < MAX_SALARY
-      ) {
-        const startHour = 9 + Math.floor(Math.random() * 3);
-        const start = `${startHour.toString().padStart(2, "0")}:00`;
-        const end = `${(startHour + proposed).toString().padStart(2, "0")}:00`;
-
-        time = `${start}-${end}`;
-        hours = proposed;
-        weeklyHours += hours;
-        totalHours += hours;
+    if (!offDays.has(d)) {
+      const h = Math.random()<0.5?3:4;
+      if (weeklyHours+h<=WEEKLY_LIMIT && (totalHours+h)*wage<MAX_SALARY) {
+        const sh=9+Math.floor(Math.random()*3);
+        time=`${String(sh).padStart(2,"0")}:00-${String(sh+h).padStart(2,"0")}:00`;
+        hours=h;
+        weeklyHours+=h;
+        totalHours+=h;
       }
     }
 
-    doc.rect(startX, y, colHours - startX, rowHeight);
-    doc.line(colDate, y, colDate, y + rowHeight);
-    doc.line(colTime, y, colTime, y + rowHeight);
+    doc.rect(startX,y,colHours-startX,rowH);
+    doc.line(colDate,y,colDate,y+rowH);
+    doc.line(colTime,y,colTime,y+rowH);
+    doc.text(`${String(d).padStart(2,"0")} ${monthName} ${year}`,startX+2,y+6);
+    doc.text(time,colDate+2,y+6);
+    doc.text(String(hours),colTime+10,y+6,{align:"right"});
 
-    doc.text(
-      `${day.toString().padStart(2, "0")} ${monthName} ${year}`,
-      startX + 2,
-      y + 6
-    );
-    doc.text(time, colDate + 2, y + 6);
-    doc.text(hours.toString(), colTime + 10, y + 6, { align: "right" });
-
-    y += rowHeight;
+    y+=rowH;
     rowsPrinted++;
   }
 
-  // ===== TOTALS =====
-  y += 6;
-  const salary = totalHours * wage;
-  doc.text(`Total Hours: ${totalHours}`, 20, y);
-  y += 6;
-  doc.text(`Total Salary: ¥${salary.toLocaleString()}`, 20, y);
+  y+=6;
+  doc.text(`Total Hours: ${totalHours}`,20,y);
+  y+=6;
+  doc.text(`Total Salary: ¥${(totalHours*wage).toLocaleString()}`,20,y);
 
-  // ===== PREVIEW =====
   pdfBlob = doc.output("blob");
   const url = URL.createObjectURL(pdfBlob);
 
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   if (isMobile) {
-    window.open(url, "_blank");
-    document.getElementById("mobileHint").style.display = "block";
+    window.open(url,"_blank");
+    document.getElementById("mobileHint").style.display="block";
   } else {
-    document.getElementById("pdfPreview").src = url;
+    document.getElementById("pdfPreview").src=url;
   }
 }
 
-// ===== PRINT =====
-function printPDF() {
-  if (!pdfBlob) return alert("Generate the PDF first");
-  const url = URL.createObjectURL(pdfBlob);
-  const win = window.open(url);
-  win.onload = () => win.print();
+function printPDF(){
+  if(!pdfBlob) return alert("Generate PDF first");
+  const w=window.open(URL.createObjectURL(pdfBlob));
+  w.onload=()=>w.print();
 }
 
-// ===== DOWNLOAD =====
-function downloadPDF() {
-  if (!pdfBlob) return alert("Generate the PDF first");
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(pdfBlob);
-  a.download = "arubaito-report.pdf";
+function downloadPDF(){
+  if(!pdfBlob) return alert("Generate PDF first");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(pdfBlob);
+  a.download="arubaito-report.pdf";
   a.click();
 }
