@@ -15,35 +15,233 @@
 </head>
 <body>
 
-  <div class="form">
-    <h1>Arubaito Report</h1>
+  <main class="app">
+    <section class="panel">
+      <div class="header">
+        <div>
+          <p class="eyebrow">Monthly work report</p>
+          <h1>Arubaito Report</h1>
+        </div>
+        <div class="statusBar" aria-live="polite">
+          <span id="appStatus" class="badge badgeWarning">Needs details</span>
+          <span id="pdfStatus" class="badge badgeMuted">PDF not generated</span>
+          <span id="saveStatus" class="badge badgeMuted">Defaults saved locally</span>
+        </div>
+      </div>
 
-    <label>Restaurant Name</label>
-    <input id="restaurant" type="text" placeholder="Namaste Restaurant" />
+      <div id="validation" class="validation" aria-live="polite"></div>
+      <div id="salaryNotice" class="notice" hidden aria-live="polite"></div>
 
-    <label>Your Name</label>
-    <input id="name" type="text" placeholder="Abhishek Kathait" />
+      <ol class="steps" aria-label="Report workflow">
+        <li class="active">
+          <span>1</span>
+          <strong>Set Details</strong>
+        </li>
+        <li>
+          <span>2</span>
+          <strong>Edit Shifts</strong>
+        </li>
+        <li>
+          <span>3</span>
+          <strong>Preview & Export</strong>
+        </li>
+      </ol>
 
-    <label>Month</label>
-    <select id="month"></select>
+      <div class="section">
+        <h2>Report Details</h2>
+        <div class="grid two">
+          <div class="field">
+            <label for="restaurant">Restaurant Name</label>
+            <input id="restaurant" type="text" placeholder="Namaste Restaurant" />
+          </div>
 
-    <label>Year</label>
-    <select id="year"></select>
+          <div class="field">
+            <label for="name">Your Name</label>
+            <input id="name" type="text" placeholder="Abhishek Kathait" required />
+          </div>
 
-    <label>Hourly Wage (¥)</label>
-    <input id="wage" type="number" value="1150" />
+          <div class="field">
+            <label for="month">Month</label>
+            <select id="month"></select>
+          </div>
 
-    <button onclick="generatePDF()">Generate PDF</button>
+          <div class="field">
+            <label for="year">Year</label>
+            <select id="year"></select>
+          </div>
+        </div>
+      </div>
 
-    <iframe id="pdfPreview"></iframe>
+      <div class="section">
+        <h2>Salary Settings</h2>
+        <div class="grid three">
+          <div class="field">
+            <label for="wage">Hourly Wage (¥)</label>
+            <input id="wage" type="number" min="0" value="1150" />
+          </div>
 
-    <p id="mobileHint" style="display:none;">
-      On mobile devices, the PDF opens in a new tab for preview and printing.
-    </p>
+          <div class="field">
+            <label for="salaryLimit">Monthly Salary Limit (¥)</label>
+            <input id="salaryLimit" type="number" min="0" value="100000" />
+          </div>
 
-    <button class="secondary" onclick="printPDF()">Print PDF</button>
-    <button class="secondary" onclick="downloadPDF()">Download PDF</button>
-  </div>
+          <div class="field">
+            <label for="targetSalary">Target Salary (¥)</label>
+            <input id="targetSalary" type="number" min="0" placeholder="Optional" />
+          </div>
+
+          <div class="field">
+            <label for="weeklyLimit">Weekly Work Limit (hours)</label>
+            <input id="weeklyLimit" type="number" min="0" value="28" />
+          </div>
+
+          <div class="field">
+            <label for="minHours">Daily Min Hours</label>
+            <input id="minHours" type="number" min="0" value="1" />
+          </div>
+
+          <div class="field">
+            <label for="maxHours">Daily Max Hours</label>
+            <input id="maxHours" type="number" min="0" value="4" />
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Shift Controls</h2>
+        <div class="grid three">
+          <div class="field">
+            <label for="startFrom">Start Time From</label>
+            <input id="startFrom" type="time" value="09:00" />
+          </div>
+
+          <div class="field">
+            <label for="startTo">Start Time To</label>
+            <input id="startTo" type="time" value="12:00" />
+          </div>
+
+          <div class="field">
+            <label for="offDay">Weekly Off Day</label>
+            <select id="offDay">
+              <option value="random">Random one day each week</option>
+              <option value="0">Sunday</option>
+              <option value="1">Monday</option>
+              <option value="2">Tuesday</option>
+              <option value="3">Wednesday</option>
+              <option value="4">Thursday</option>
+              <option value="5">Friday</option>
+              <option value="6">Saturday</option>
+            </select>
+          </div>
+        </div>
+
+        <fieldset class="lengths">
+          <legend>Allowed Shift Lengths</legend>
+          <label><input type="checkbox" name="shiftLength" value="1" checked /> 1h</label>
+          <label><input type="checkbox" name="shiftLength" value="2" checked /> 2h</label>
+          <label><input type="checkbox" name="shiftLength" value="3" checked /> 3h</label>
+          <label><input type="checkbox" name="shiftLength" value="4" checked /> 4h</label>
+          <label><input type="checkbox" name="shiftLength" value="5" /> 5h</label>
+          <label><input type="checkbox" name="shiftLength" value="6" /> 6h</label>
+        </fieldset>
+      </div>
+
+      <div class="actions">
+        <button id="generateSchedule" type="button">Regenerate Shifts</button>
+        <button id="generatePdf" type="button" class="secondary">Generate PDF Preview</button>
+        <button id="printPdf" type="button" class="secondary" disabled>Print PDF</button>
+        <button id="downloadPdf" type="button" class="secondary" disabled>Download PDF</button>
+        <button id="saveDefaults" type="button" class="ghost">Save Defaults</button>
+        <button id="resetReport" type="button" class="ghost">Reset Report</button>
+        <button id="resetMonth" type="button" class="ghost">Reset Month</button>
+        <button id="clearDefaults" type="button" class="ghost danger">Clear Saved Defaults</button>
+      </div>
+      <div class="actionMeta">
+        <p>Defaults save settings only. Month and year always use current date.</p>
+        <p>PDF filename: <strong id="fileNamePreview">Name_Month_Year_Arubaito_Report.pdf</strong></p>
+      </div>
+    </section>
+
+    <section class="summary" aria-live="polite">
+      <div class="summaryCard">
+        <span>Total Hours</span>
+        <strong id="summaryHours">0</strong>
+      </div>
+      <div class="summaryCard">
+        <span>Estimated Salary</span>
+        <strong id="summarySalary">¥0</strong>
+      </div>
+      <div class="summaryCard">
+        <span>Remaining Limit</span>
+        <strong id="summaryRemaining">¥0</strong>
+      </div>
+      <div class="summaryCard">
+        <span>Work / Off Days</span>
+        <strong id="summaryDays">0 / 0</strong>
+      </div>
+    </section>
+
+    <section class="progressPanel" aria-live="polite">
+      <div class="progressItem">
+        <div class="progressHeader">
+          <span>Monthly salary limit</span>
+          <strong id="salaryProgressText">0%</strong>
+        </div>
+        <div class="progressTrack">
+          <div id="salaryProgressBar" class="progressBar"></div>
+        </div>
+      </div>
+      <div class="progressItem">
+        <div class="progressHeader">
+          <span>Target salary progress</span>
+          <strong id="targetProgressText">No target</strong>
+        </div>
+        <div class="progressTrack">
+          <div id="targetProgressBar" class="progressBar secondaryBar"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <div class="tablePanel">
+        <div class="tableHeader">
+          <div>
+            <h2>Editable Shifts</h2>
+            <p>Edit time, hours, or mark a day off before generating the PDF.</p>
+          </div>
+          <span id="tableStatus" class="badge badgeMuted">Ready to edit</span>
+        </div>
+        <div class="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Weekday</th>
+                <th>Shifts</th>
+                <th>Hours</th>
+                <th>Off</th>
+              </tr>
+            </thead>
+            <tbody id="shiftRows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="previewPanel">
+        <div class="previewHeader">
+          <div>
+            <h2>PDF Preview</h2>
+            <p>Generate the preview after editing shifts.</p>
+          </div>
+          <span id="previewStatus" class="badge badgeMuted">Waiting</span>
+        </div>
+        <iframe id="pdfPreview" title="Generated PDF preview"></iframe>
+        <p id="mobileHint" hidden>
+          On mobile devices, the PDF opens in a new tab for preview and printing.
+        </p>
+      </div>
+    </section>
+  </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="script.js"></script>
