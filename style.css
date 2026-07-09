@@ -476,8 +476,8 @@ button:disabled {
 }
 
 .tableWrap {
-  max-height: 520px;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: visible;
   border: 1px solid var(--line);
   border-radius: 6px;
 }
