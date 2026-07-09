@@ -151,11 +151,11 @@ function saveDefaultsFromButton() {
 function getSettings() {
   const wage = readNumber("wage");
   const salaryLimit = readNumber("salaryLimit");
-  const targetSalaryInput = readNumber("targetSalary");
+  const minimumSalaryInput = readNumber("targetSalary");
   const weeklyLimit = readNumber("weeklyLimit");
   const minHours = readNumber("minHours");
   const maxHours = readNumber("maxHours");
-  const targetSalary = targetSalaryInput > 0 ? Math.min(targetSalaryInput, salaryLimit || targetSalaryInput) : 0;
+  const minimumSalary = minimumSalaryInput > 0 ? Math.min(minimumSalaryInput, salaryLimit || minimumSalaryInput) : 0;
 
   return {
     restaurant: els.restaurant.value.trim(),
@@ -164,8 +164,8 @@ function getSettings() {
     year: Number(els.year.value),
     wage,
     salaryLimit,
-    targetSalary,
-    targetSalaryInput,
+    minimumSalary,
+    minimumSalaryInput,
     weeklyLimit,
     minHours,
     maxHours,
@@ -204,11 +204,14 @@ function validateSettings(requireName = false, checkCurrentRows = true) {
   if (requireName && !settings.name) messages.push("Your name is required before generating the PDF.");
   if (!Number.isFinite(settings.wage) || settings.wage <= 0) messages.push("Hourly wage must be greater than 0.");
   if (!Number.isFinite(settings.salaryLimit)) messages.push("Monthly salary limit must be a valid number.");
-  if (!Number.isFinite(settings.targetSalaryInput)) messages.push("Target salary must be a valid number.");
+  if (!Number.isFinite(settings.minimumSalaryInput)) messages.push("Minimum salary must be a valid number.");
   if (!Number.isFinite(settings.weeklyLimit) || settings.weeklyLimit <= 0) messages.push("Weekly work limit must be greater than 0.");
   if (!Number.isFinite(settings.minHours) || !Number.isFinite(settings.maxHours)) messages.push("Daily min/max hours must be valid numbers.");
   if (settings.salaryLimit < 0) messages.push("Monthly salary limit cannot be negative.");
-  if (settings.targetSalaryInput < 0) messages.push("Target salary cannot be negative.");
+  if (settings.minimumSalaryInput < 0) messages.push("Minimum salary cannot be negative.");
+  if (settings.salaryLimit > 0 && settings.minimumSalaryInput > settings.salaryLimit) {
+    messages.push("Minimum salary must be less than or equal to the monthly salary limit.");
+  }
   if (settings.minHours < 0 || settings.maxHours < 0) messages.push("Daily hours cannot be negative.");
   if (settings.maxHours < settings.minHours) messages.push("Daily max hours must be greater than or equal to daily min hours.");
   if (!lengths.length) messages.push("Select at least one shift length within the daily min/max range.");
@@ -222,6 +225,10 @@ function validateSettings(requireName = false, checkCurrentRows = true) {
     const currentSalary = getShiftRows().reduce((sum, row) => sum + row.hours * Math.max(0, settings.wage || 0), 0);
     if (settings.salaryLimit > 0 && currentSalary > settings.salaryLimit) {
       messages.push(`Estimated salary exceeds the monthly limit by ${formatYen(currentSalary - settings.salaryLimit)}.`);
+    }
+    const hasValidSalaryRange = !settings.salaryLimit || settings.minimumSalaryInput <= settings.salaryLimit;
+    if (hasValidSalaryRange && settings.minimumSalaryInput > 0 && currentSalary < settings.minimumSalaryInput && getShiftRows().some((row) => row.hours > 0)) {
+      warnings.push(`Estimated salary is below the minimum by ${formatYen(settings.minimumSalaryInput - currentSalary)}.`);
     }
   }
 
@@ -285,7 +292,7 @@ function generateSchedule() {
     let time = "OFF";
 
     if (!isOff) {
-      hours = chooseHours(lengths, remainingTarget, remainingWeekly);
+      hours = chooseHours(lengths, remainingTarget, remainingWeekly, settings.minimumSalary > 0);
       if (hours > 0) {
         time = buildTimeRange(settings, hours);
         totalHours += hours;
@@ -324,15 +331,17 @@ function buildOffDays(settings, daysInMonth) {
 function getTargetHours(settings) {
   if (settings.wage <= 0) return 0;
   const salaryCap = settings.salaryLimit > 0 ? Math.floor(settings.salaryLimit / settings.wage) : Infinity;
-  const targetCap = settings.targetSalary > 0 ? Math.floor(settings.targetSalary / settings.wage) : salaryCap;
+  const targetCap = settings.minimumSalary > 0 ? Math.ceil(settings.minimumSalary / settings.wage) : salaryCap;
   return Math.max(0, Math.min(salaryCap, targetCap));
 }
 
-function chooseHours(lengths, remainingTarget, remainingWeekly) {
+function chooseHours(lengths, remainingTarget, remainingWeekly, prioritizeTarget = false) {
   const options = lengths.filter((hours) => hours <= remainingTarget && hours <= remainingWeekly);
   if (!options.length) return 0;
 
   const exactOrLargest = options.find((hours) => hours === remainingTarget) || Math.max(...options);
+  if (prioritizeTarget) return exactOrLargest;
+
   const softerChoices = options.filter((hours) => hours <= exactOrLargest);
   return softerChoices[randomInt(0, softerChoices.length - 1)];
 }
@@ -656,13 +665,13 @@ function updateSummary() {
 
 function updateProgressBars(settings, salary) {
   const salaryLimit = Number.isFinite(settings.salaryLimit) ? Math.max(0, settings.salaryLimit) : 0;
-  const targetSalary = Number.isFinite(settings.targetSalaryInput) ? Math.max(0, settings.targetSalaryInput) : 0;
+  const minimumSalary = Number.isFinite(settings.minimumSalaryInput) ? Math.max(0, settings.minimumSalaryInput) : 0;
 
   updateProgress(els.salaryProgressBar, els.salaryProgressText, salary, salaryLimit, "No limit");
-  updateProgress(els.targetProgressBar, els.targetProgressText, salary, targetSalary, "No target");
+  updateProgress(els.targetProgressBar, els.targetProgressText, salary, minimumSalary, "No minimum", false);
 }
 
-function updateProgress(bar, label, current, max, emptyText) {
+function updateProgress(bar, label, current, max, emptyText, overIsBad = true) {
   if (!max) {
     bar.style.width = "0%";
     bar.classList.remove("nearLimit", "overLimit");
@@ -674,8 +683,8 @@ function updateProgress(bar, label, current, max, emptyText) {
   const clamped = Math.min(percent, 100);
   bar.style.width = `${clamped}%`;
   label.textContent = `${percent}%`;
-  bar.classList.toggle("nearLimit", percent >= 90 && percent < 100);
-  bar.classList.toggle("overLimit", percent >= 100);
+  bar.classList.toggle("nearLimit", overIsBad ? percent >= 90 && percent < 100 : percent >= 75 && percent < 100);
+  bar.classList.toggle("overLimit", overIsBad && percent >= 100);
 }
 
 function updateRowStates(rows, settings) {
