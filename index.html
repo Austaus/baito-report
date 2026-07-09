@@ -209,9 +209,12 @@
             <h2>Editable Shifts</h2>
             <p>Edit time, hours, or mark a day off before generating the PDF.</p>
           </div>
-          <span id="tableStatus" class="badge badgeMuted">Ready to edit</span>
+          <div class="tableHeaderActions">
+            <button id="toggleShifts" type="button" class="ghost" aria-expanded="false" aria-controls="shiftTableWrap">Show Shifts</button>
+            <span id="tableStatus" class="badge badgeMuted">Ready to edit</span>
+          </div>
         </div>
-        <div class="tableWrap">
+        <div id="shiftTableWrap" class="tableWrap" hidden>
           <table>
             <thead>
               <tr>
@@ -235,15 +238,17 @@
           </div>
           <span id="previewStatus" class="badge badgeMuted">Waiting</span>
         </div>
+        <div id="pdfCanvasPreview" class="pdfCanvasPreview" hidden aria-label="Generated PDF preview"></div>
         <iframe id="pdfPreview" title="Generated PDF preview"></iframe>
         <p id="mobileHint" hidden>
-          On mobile devices, the PDF opens in a new tab for preview and printing.
+          PDF preview appears below after generation.
         </p>
       </div>
     </section>
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="script.js"></script>
 
 </body>

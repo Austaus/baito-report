@@ -19,7 +19,8 @@ const ELEMENT_IDS = [
   "month", "year",
   "shiftRows", "validation", "summaryHours", "summarySalary", "summaryRemaining",
   "summaryDays", "generateSchedule", "generatePdf", "printPdf", "downloadPdf",
-  "saveDefaults", "resetReport", "resetMonth", "clearDefaults", "pdfPreview", "mobileHint", "saveStatus",
+  "saveDefaults", "resetReport", "resetMonth", "clearDefaults", "toggleShifts", "shiftTableWrap",
+  "pdfCanvasPreview", "pdfPreview", "mobileHint", "saveStatus",
   "appStatus", "pdfStatus", "tableStatus", "previewStatus", "salaryProgressText",
   "salaryProgressBar", "targetProgressText", "targetProgressBar", "salaryNotice", "fileNamePreview"
 ];
@@ -27,12 +28,15 @@ const ELEMENT_IDS = [
 let pdfBlob = null;
 let lastDoc = null;
 let lastPdfUrl = null;
+let lastGeneratedTargetHours = null;
+let pdfPreviewRenderId = 0;
 
 const els = {};
 
 /* App setup */
 document.addEventListener("DOMContentLoaded", () => {
   cacheElements();
+  initPdfRenderer();
   initSelectors();
   loadDefaults();
   bindEvents();
@@ -67,6 +71,11 @@ function initSelectors() {
   }
 }
 
+function initPdfRenderer() {
+  if (!window.pdfjsLib) return;
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+}
+
 function bindEvents() {
   els.generateSchedule.addEventListener("click", generateSchedule);
   els.generatePdf.addEventListener("click", generatePDF);
@@ -76,6 +85,9 @@ function bindEvents() {
   els.resetReport.addEventListener("click", resetReportOnly);
   els.resetMonth.addEventListener("click", resetMonth);
   els.clearDefaults.addEventListener("click", clearSavedDefaults);
+  els.toggleShifts.addEventListener("click", () => {
+    setShiftTableCollapsed(!els.shiftTableWrap.hidden);
+  });
 
   FORM_FIELD_IDS.forEach((id) => {
     const eventName = els[id].tagName === "SELECT" ? "change" : "input";
@@ -275,33 +287,37 @@ function generateSchedule() {
   const daysInMonth = new Date(settings.year, settings.monthIndex + 1, 0).getDate();
   const offDays = buildOffDays(settings, daysInMonth);
   const lengths = getEffectiveLengths(settings);
-  const targetHours = getTargetHours(settings);
+  const targetHours = getTargetHours(settings, lastGeneratedTargetHours);
+  lastGeneratedTargetHours = targetHours;
+  const scheduleDays = Array.from({ length: daysInMonth }, (_, index) => {
+    const day = index + 1;
+    const date = new Date(settings.year, settings.monthIndex, day);
+    return { day, date, weekKey: getWeekKey(date) };
+  });
+  const plannedShifts = new Map();
   const weeklyHours = new Map();
   let totalHours = 0;
 
   els.shiftRows.innerHTML = "";
 
-  for (let day = 1; day <= daysInMonth; day++) {
-    const date = new Date(settings.year, settings.monthIndex, day);
-    const weekKey = getWeekKey(date);
+  shuffleArray(scheduleDays.filter(({ day }) => !offDays.has(day))).forEach(({ day, weekKey }) => {
     const currentWeekHours = weeklyHours.get(weekKey) || 0;
     const remainingTarget = Math.max(0, targetHours - totalHours);
     const remainingWeekly = Math.max(0, settings.weeklyLimit - currentWeekHours);
-    const isOff = offDays.has(day) || remainingTarget <= 0;
-    let hours = 0;
-    let time = "OFF";
+    if (remainingTarget <= 0) return;
 
-    if (!isOff) {
-      hours = chooseHours(lengths, remainingTarget, remainingWeekly, settings.minimumSalary > 0);
-      if (hours > 0) {
-        time = buildTimeRange(settings, hours);
-        totalHours += hours;
-        weeklyHours.set(weekKey, currentWeekHours + hours);
-      }
+    const hours = chooseHours(lengths, remainingTarget, remainingWeekly, settings.minimumSalary > 0);
+    if (hours > 0) {
+      plannedShifts.set(day, { time: buildTimeRange(settings, hours), hours });
+      totalHours += hours;
+      weeklyHours.set(weekKey, currentWeekHours + hours);
     }
+  });
 
-    els.shiftRows.appendChild(createShiftRow(date, day, time, hours));
-  }
+  scheduleDays.forEach(({ day, date }) => {
+    const planned = plannedShifts.get(day) || { time: "OFF", hours: 0 };
+    els.shiftRows.appendChild(createShiftRow(date, day, planned.time, planned.hours));
+  });
 
   updateSummary();
   invalidatePdf();
@@ -328,11 +344,24 @@ function buildOffDays(settings, daysInMonth) {
   return offDays;
 }
 
-function getTargetHours(settings) {
+function getTargetHours(settings, previousTargetHours = null) {
   if (settings.wage <= 0) return 0;
   const salaryCap = settings.salaryLimit > 0 ? Math.floor(settings.salaryLimit / settings.wage) : Infinity;
-  const targetCap = settings.minimumSalary > 0 ? Math.ceil(settings.minimumSalary / settings.wage) : salaryCap;
-  return Math.max(0, Math.min(salaryCap, targetCap));
+  if (settings.minimumSalary > 0) {
+    const minTargetHours = Math.ceil(settings.minimumSalary / settings.wage);
+    const maxTargetHours = Number.isFinite(salaryCap) ? salaryCap : minTargetHours;
+    const low = Math.max(0, Math.min(minTargetHours, maxTargetHours));
+    const high = Math.max(low, maxTargetHours);
+    const candidates = [];
+
+    for (let hours = low; hours <= high; hours++) {
+      if (hours !== previousTargetHours || low === high) candidates.push(hours);
+    }
+
+    return candidates[randomInt(0, candidates.length - 1)];
+  }
+
+  return Math.max(0, salaryCap);
 }
 
 function chooseHours(lengths, remainingTarget, remainingWeekly, prioritizeTarget = false) {
@@ -801,16 +830,67 @@ function generatePDF() {
   lastPdfUrl = url;
   const previewUrl = `${url}#zoom=125&view=FitH`;
 
-  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-    window.open(previewUrl, "_blank");
-    els.mobileHint.hidden = false;
-  } else {
-    els.pdfPreview.src = previewUrl;
-  }
+  renderPdfPreview(pdfBlob, previewUrl);
+  els.mobileHint.hidden = true;
 
   setPdfButtons(true);
   setBadge(els.pdfStatus, "PDF generated", "badge badgeSuccess");
   setBadge(els.previewStatus, "Preview ready", "badge badgeSuccess");
+}
+
+async function renderPdfPreview(blob, fallbackUrl) {
+  clearPdfPreview();
+  const renderId = pdfPreviewRenderId;
+
+  if (!window.pdfjsLib) {
+    showFallbackPdfPreview(fallbackUrl);
+    return;
+  }
+
+  try {
+    const buffer = await blob.arrayBuffer();
+    const pdf = await window.pdfjsLib.getDocument({ data: buffer }).promise;
+    const previewWidth = Math.min(980, els.pdfCanvasPreview.clientWidth || 980);
+    const outputScale = Math.min(window.devicePixelRatio || 1, 2);
+
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+      if (renderId !== pdfPreviewRenderId) return;
+      const page = await pdf.getPage(pageNumber);
+      const baseViewport = page.getViewport({ scale: 1 });
+      const cssScale = previewWidth / baseViewport.width;
+      const renderViewport = page.getViewport({ scale: cssScale * outputScale });
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+
+      canvas.width = Math.floor(renderViewport.width);
+      canvas.height = Math.floor(renderViewport.height);
+      canvas.style.width = `${Math.floor(baseViewport.width * cssScale)}px`;
+      canvas.style.height = `${Math.floor(baseViewport.height * cssScale)}px`;
+
+      els.pdfCanvasPreview.appendChild(canvas);
+      await page.render({ canvasContext: context, viewport: renderViewport }).promise;
+    }
+
+    if (renderId !== pdfPreviewRenderId) return;
+    els.pdfCanvasPreview.hidden = false;
+  } catch (error) {
+    console.warn("Could not render PDF preview canvas.", error);
+    clearPdfPreview();
+    showFallbackPdfPreview(fallbackUrl);
+  }
+}
+
+function clearPdfPreview() {
+  pdfPreviewRenderId += 1;
+  els.pdfCanvasPreview.innerHTML = "";
+  els.pdfCanvasPreview.hidden = true;
+  els.pdfPreview.hidden = true;
+  els.pdfPreview.removeAttribute("src");
+}
+
+function showFallbackPdfPreview(url) {
+  els.pdfPreview.hidden = false;
+  els.pdfPreview.src = url;
 }
 
 function drawTableHeader(doc, y) {
@@ -870,6 +950,7 @@ function downloadPDF() {
 function invalidatePdf() {
   pdfBlob = null;
   lastDoc = null;
+  clearPdfPreview();
   setPdfButtons(false);
   setBadge(els.pdfStatus, "PDF not generated", "badge badgeMuted");
   setBadge(els.previewStatus, "Waiting", "badge badgeMuted");
@@ -880,13 +961,19 @@ function setPdfButtons(enabled) {
   els.downloadPdf.disabled = !enabled;
 }
 
+function setShiftTableCollapsed(collapsed) {
+  els.shiftTableWrap.hidden = collapsed;
+  els.toggleShifts.textContent = collapsed ? "Show Shifts" : "Hide Shifts";
+  els.toggleShifts.setAttribute("aria-expanded", String(!collapsed));
+}
+
 function resetReportOnly() {
   els.shiftRows.innerHTML = "";
   if (lastPdfUrl) URL.revokeObjectURL(lastPdfUrl);
   lastPdfUrl = null;
   pdfBlob = null;
   lastDoc = null;
-  els.pdfPreview.removeAttribute("src");
+  clearPdfPreview();
   els.summaryHours.textContent = "0";
   els.summarySalary.textContent = formatYen(0);
   els.summaryRemaining.textContent = formatYen(Math.max(0, getSettings().salaryLimit || 0));
@@ -978,6 +1065,15 @@ function minutesToTime(totalMinutes) {
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function shuffleArray(items) {
+  const shuffled = [...items];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = randomInt(0, i);
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
 }
 
 function formatYen(value) {

@@ -464,6 +464,14 @@ button:disabled {
   margin-bottom: 12px;
 }
 
+.tableHeaderActions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .tableHeader h2,
 .previewPanel h2 {
   margin-bottom: 0;
@@ -597,6 +605,25 @@ td input[type="checkbox"] {
   min-height: 18px;
 }
 
+.pdfCanvasPreview {
+  display: grid;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.pdfCanvasPreview[hidden] {
+  display: none;
+}
+
+.pdfCanvasPreview canvas {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.08);
+}
+
 #pdfPreview {
   box-sizing: border-box;
   width: 100%;
@@ -610,7 +637,8 @@ td input[type="checkbox"] {
   pointer-events: none;
 }
 
-#pdfPreview:not([src]) {
+#pdfPreview:not([src]),
+#pdfPreview[hidden] {
   display: none;
 }
 
@@ -659,6 +687,11 @@ td input[type="checkbox"] {
   .tableHeader p {
     margin-top: 4px;
     text-align: left;
+  }
+
+  .tableHeaderActions {
+    justify-content: flex-start;
+    margin-top: 10px;
   }
 
   .header {
